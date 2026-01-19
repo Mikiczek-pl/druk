@@ -39,7 +39,7 @@ missing_to_full = (3 - (total_covers % 3)) % 3
 st.markdown("---")
 st.markdown(f"<div style='text-align:center;font-size:24px;font-weight:bold;'>Liczba wszystkich okładek: {total_covers}</div>", unsafe_allow_html=True)
 if missing_to_full > 0:
-    st.markdown(f"<div style='text-align:center;color:red;'>Brakuje {missing_to_full} okładki, aby dopełnić pełny komplet (wielokrotność 3).</div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='text-align:center;color:red;'>Brakuje {missing_to_full} okładki</div>", unsafe_allow_html=True)
 else:
     st.markdown("<div style='text-align:center;color:green;'>Liczba okładek to pełny komplet.</div>", unsafe_allow_html=True)
 
