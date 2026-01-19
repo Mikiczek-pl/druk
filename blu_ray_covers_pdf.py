@@ -15,6 +15,10 @@ if "covers" not in st.session_state:
     st.session_state.covers = []
 if "quantities" not in st.session_state:
     st.session_state.quantities = {}
+if "pdf_ready" not in st.session_state:
+    st.session_state.pdf_ready = False
+if "pdf_buffer" not in st.session_state:
+    st.session_state.pdf_buffer = None
 
 # --- Upload ---
 with st.container():
@@ -28,21 +32,6 @@ if uploaded_files:
             st.session_state.covers.append({"name": name, "image": image})
             st.session_state.quantities[name] = 1
 
-# --- Podgląd i edycja ---
-st.markdown("---")
-st.markdown("<h3 style='text-align: center;'>Wybrane okładki</h3>", unsafe_allow_html=True)
-
-for cover in st.session_state.covers:
-    st.image(cover["image"], use_column_width=True)
-    qty = st.number_input(
-        f"Ilość ({cover['name']})",
-        min_value=1,
-        step=1,
-        value=st.session_state.quantities.get(cover['name'], 1),
-        key=f"qty_{cover['name']}"
-    )
-    st.session_state.quantities[cover['name']] = qty
-
 # --- Licznik ---
 total_covers = sum(st.session_state.quantities.values())
 missing_to_full = (3 - (total_covers % 3)) % 3
@@ -53,6 +42,24 @@ if missing_to_full > 0:
     st.markdown(f"<div style='text-align:center;color:red;'>Brakuje {missing_to_full} okładki, aby dopełnić pełny komplet (wielokrotność 3).</div>", unsafe_allow_html=True)
 else:
     st.markdown("<div style='text-align:center;color:green;'>Liczba okładek to pełny komplet.</div>", unsafe_allow_html=True)
+
+# --- Podgląd i edycja ---
+st.markdown("---")
+st.markdown("<h3 style='text-align: center;'>Wybrane okładki</h3>", unsafe_allow_html=True)
+
+for cover in st.session_state.covers:
+    col1, col2 = st.columns([1, 2])
+    with col1:
+        st.image(cover["image"], width=150)
+    with col2:
+        qty = st.number_input(
+            f"Ilość ({cover['name']}):",
+            min_value=1,
+            step=1,
+            value=st.session_state.quantities.get(cover['name'], 1),
+            key=f"qty_{cover['name']}"
+        )
+        st.session_state.quantities[cover['name']] = qty
 
 # --- Generowanie PDF ---
 def generate_pdf(cover_data):
@@ -106,24 +113,34 @@ def generate_pdf(cover_data):
     buffer.seek(0)
     return buffer
 
-# --- Generowanie i automatyczne pobieranie ---
-if total_covers >= 1:
-    covers_to_print = [
-        {"name": cover["name"], "image": cover["image"], "quantity": st.session_state.quantities[cover["name"]]}
-        for cover in st.session_state.covers if st.session_state.quantities[cover["name"]] > 0
-    ]
-    with st.spinner("Generowanie PDF..."):
-        pdf_buffer = generate_pdf(covers_to_print)
-        st.success("PDF został wygenerowany.")
-        st.download_button("Kliknij tutaj jeśli nie pobrało się automatycznie", data=pdf_buffer, file_name="okladki.pdf", mime="application/pdf")
-        js = f"""
-            <script>
-            var link = document.createElement('a');
-            link.href = window.URL.createObjectURL(new Blob([{pdf_buffer.getvalue()}], {{type: 'application/pdf'}}));
-            link.download = 'okladki.pdf';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            </script>
-        """
-        st.components.v1.html(js, height=0)
+# --- Przycisk ---
+st.markdown("---")
+if st.button("Stwórz PDF"):
+    if total_covers == 0:
+        st.warning("Nie dodano żadnych okładek.")
+    else:
+        with st.spinner("Generowanie PDF..."):
+            covers_to_print = [
+                {"name": cover["name"], "image": cover["image"], "quantity": st.session_state.quantities[cover["name"]]}
+                for cover in st.session_state.covers if st.session_state.quantities[cover["name"]] > 0
+            ]
+            st.session_state.pdf_buffer = generate_pdf(covers_to_print)
+            st.session_state.pdf_ready = True
+
+# --- Automatyczne pobieranie ---
+if st.session_state.pdf_ready and st.session_state.pdf_buffer:
+    js = f"""
+        <script>
+        var file = new Blob([{st.session_state.pdf_buffer.getvalue()}], {{type: 'application/pdf'}});
+        var fileURL = URL.createObjectURL(file);
+        var a = document.createElement('a');
+        a.href = fileURL;
+        a.download = 'okladki.pdf';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        </script>
+    """
+    st.components.v1.html(js, height=0)
+    st.download_button("📥 Kliknij tutaj jeśli nie pobrano automatycznie", data=st.session_state.pdf_buffer, file_name="okladki.pdf", mime="application/pdf")
+    st.session_state.pdf_ready = False
