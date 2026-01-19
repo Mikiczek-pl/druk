@@ -7,27 +7,18 @@ from reportlab.lib.pagesizes import landscape
 from reportlab.lib.units import mm
 
 st.set_page_config(page_title="Stwórz okładkę Blu-ray", layout="wide")
-st.title("🎬 Stwórz okładkę Blu-ray")
+st.markdown("""
+    <h1 style='text-align: center;'>Stwórz okładkę Blu-ray</h1>
+""", unsafe_allow_html=True)
 
 if "covers" not in st.session_state:
     st.session_state.covers = []
 if "quantities" not in st.session_state:
     st.session_state.quantities = {}
 
-# --- Oblicz i pokaż liczbę okładek ---
-st.markdown("---")
-total_covers = sum(st.session_state.quantities.get(cover["name"], 1) for cover in st.session_state.covers)
-missing_to_full = (3 - (total_covers % 3)) % 3
-
-highlight_style = "font-size:24px; font-weight:bold; margin-bottom:10px;"
-st.markdown(f"<div style='{highlight_style}'>🧮 Liczba wszystkich okładek: {total_covers}</div>", unsafe_allow_html=True)
-if missing_to_full > 0:
-    st.warning(f"Brakuje {missing_to_full} okładki, aby dopełnić pełny komplet (wielokrotność 3).")
-else:
-    st.success("Liczba okładek to pełny komplet.")
-
 # --- Upload ---
-uploaded_files = st.file_uploader("Wgraj obrazy (JPG, PNG)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+with st.container():
+    uploaded_files = st.file_uploader("Wgraj obrazy (JPG, PNG)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
 if uploaded_files:
     for file in uploaded_files:
@@ -37,17 +28,31 @@ if uploaded_files:
             st.session_state.covers.append({"name": name, "image": image})
             st.session_state.quantities[name] = 1
 
-# --- Podgląd ---
+# --- Podgląd i edycja ---
 st.markdown("---")
-st.markdown("## 📂 Wybrane okładki")
+st.markdown("<h3 style='text-align: center;'>Wybrane okładki</h3>", unsafe_allow_html=True)
 
 for cover in st.session_state.covers:
-    col1, col2 = st.columns([1, 3])
-    with col1:
-        st.image(cover["image"], use_column_width=True)
-    with col2:
-        qty = st.number_input(f"Ilość kopii ({cover['name']}):", min_value=1, step=1, value=st.session_state.quantities.get(cover['name'], 1), key=f"qty_{cover['name']}")
-        st.session_state.quantities[cover['name']] = qty
+    st.image(cover["image"], use_column_width=True)
+    qty = st.number_input(
+        f"Ilość ({cover['name']})",
+        min_value=1,
+        step=1,
+        value=st.session_state.quantities.get(cover['name'], 1),
+        key=f"qty_{cover['name']}"
+    )
+    st.session_state.quantities[cover['name']] = qty
+
+# --- Licznik ---
+total_covers = sum(st.session_state.quantities.values())
+missing_to_full = (3 - (total_covers % 3)) % 3
+
+st.markdown("---")
+st.markdown(f"<div style='text-align:center;font-size:24px;font-weight:bold;'>Liczba wszystkich okładek: {total_covers}</div>", unsafe_allow_html=True)
+if missing_to_full > 0:
+    st.markdown(f"<div style='text-align:center;color:red;'>Brakuje {missing_to_full} okładki, aby dopełnić pełny komplet (wielokrotność 3).</div>", unsafe_allow_html=True)
+else:
+    st.markdown("<div style='text-align:center;color:green;'>Liczba okładek to pełny komplet.</div>", unsafe_allow_html=True)
 
 # --- Generowanie PDF ---
 def generate_pdf(cover_data):
@@ -101,16 +106,24 @@ def generate_pdf(cover_data):
     buffer.seek(0)
     return buffer
 
-# --- PDF button ---
-st.markdown("---")
-if st.button("📄 Stwórz PDF"):
-    if total_covers == 0:
-        st.warning("Nie dodano żadnych okładek.")
-    else:
-        with st.spinner("Generowanie PDF... Proszę czekać"):
-            covers_to_print = [
-                {"name": cover["name"], "image": cover["image"], "quantity": st.session_state.quantities[cover["name"]]}
-                for cover in st.session_state.covers if st.session_state.quantities[cover["name"]] > 0
-            ]
-            pdf_buffer = generate_pdf(covers_to_print)
-            st.download_button("📥 Pobierz PDF", data=pdf_buffer, file_name="okladki.pdf", mime="application/pdf")
+# --- Generowanie i automatyczne pobieranie ---
+if total_covers >= 1:
+    covers_to_print = [
+        {"name": cover["name"], "image": cover["image"], "quantity": st.session_state.quantities[cover["name"]]}
+        for cover in st.session_state.covers if st.session_state.quantities[cover["name"]] > 0
+    ]
+    with st.spinner("Generowanie PDF..."):
+        pdf_buffer = generate_pdf(covers_to_print)
+        st.success("PDF został wygenerowany.")
+        st.download_button("Kliknij tutaj jeśli nie pobrało się automatycznie", data=pdf_buffer, file_name="okladki.pdf", mime="application/pdf")
+        js = f"""
+            <script>
+            var link = document.createElement('a');
+            link.href = window.URL.createObjectURL(new Blob([{pdf_buffer.getvalue()}], {{type: 'application/pdf'}}));
+            link.download = 'okladki.pdf';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            </script>
+        """
+        st.components.v1.html(js, height=0)
