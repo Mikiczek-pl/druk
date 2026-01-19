@@ -6,10 +6,8 @@ from reportlab.lib.pagesizes import landscape
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
 
-# Ustawienia strony
 st.set_page_config(page_title="Stwórz okładkę Blu-ray", layout="centered")
-
-st.markdown("<h1 style='text-align: center;'>🎬 Stwórz okładkę Blu-ray</h1>", unsafe_allow_html=True)
+st.title("Stwórz okładkę Blu-ray")
 
 # Inicjalizacja sesji
 if "covers" not in st.session_state:
@@ -18,7 +16,7 @@ if "quantities" not in st.session_state:
     st.session_state.quantities = {}
 
 # Wgrywanie plików
-uploaded_files = st.file_uploader("📂 Prześlij okładki (JPG, PNG)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+uploaded_files = st.file_uploader("Prześlij okładki (JPG, PNG)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
 if uploaded_files:
     for file in uploaded_files:
@@ -28,11 +26,11 @@ if uploaded_files:
             st.session_state.covers.append({"name": name, "image": image})
             st.session_state.quantities[name] = 1
 
-st.markdown("### 📄 Podgląd i ustawienia", unsafe_allow_html=True)
-to_move = []
+st.markdown("### Podgląd i ustawienia")
+to_remove = []
 
-for cover in st.session_state.covers:
-    col1, col2 = st.columns([1, 4])
+for idx, cover in enumerate(st.session_state.covers):
+    col1, col2, col3 = st.columns([1, 4, 1])
     with col1:
         st.image(cover["image"], width=100)
     with col2:
@@ -45,28 +43,28 @@ for cover in st.session_state.covers:
             value=st.session_state.quantities.get(cover['name'], 1)
         )
         st.session_state.quantities[cover['name']] = qty
-        if st.button(f"❌ Usuń", key=f"del_{cover['name']}"):
-            to_move.append(cover["name"])
+    with col3:
+        if st.button("Usuń", key=f"del_{cover['name']}"):
+            to_remove.append(idx)
 
-# Przenoszenie usuniętych na koniec listy (nie resetuje danych)
-if to_move:
-    st.session_state.covers = [c for c in st.session_state.covers if c['name'] not in to_move] + \
-                              [c for c in st.session_state.covers if c['name'] in to_move]
+if to_remove:
+    for idx in sorted(to_remove, reverse=True):
+        removed = st.session_state.covers.pop(idx)
+        st.session_state.quantities.pop(removed['name'], None)
 
 # Podsumowanie
 st.markdown("---")
-st.subheader("📦 Podsumowanie")
+st.subheader("Podsumowanie")
 
 total = sum(st.session_state.quantities.get(c['name'], 0) for c in st.session_state.covers)
 missing = (3 - total % 3) % 3
 
 st.markdown(f"**Liczba wszystkich okładek:** {total}")
 if missing > 0:
-    st.warning(f"⚠️ Brakuje {missing} okładki, aby dopełnić komplet (wielokrotność 3).")
+    st.warning(f"Brakuje {missing} okładki, aby dopełnić komplet (wielokrotność 3).")
 else:
-    st.success("✅ Liczba okładek to pełny komplet.")
+    st.success("Liczba okładek to pełny komplet.")
 
-# Funkcja PDF
 def generate_pdf(cover_data):
     h_size = (270 * mm, 150 * mm)
     v_size = (150 * mm, 270 * mm)
@@ -110,7 +108,7 @@ def generate_pdf(cover_data):
 
 # Generuj PDF
 st.markdown("---")
-if st.button("📄 Stwórz PDF"):
+if st.button("Stwórz PDF"):
     covers = [
         {"name": c["name"], "image": c["image"], "quantity": st.session_state.quantities[c["name"]]}
         for c in st.session_state.covers if st.session_state.quantities[c["name"]] > 0
@@ -118,5 +116,6 @@ if st.button("📄 Stwórz PDF"):
     if not covers:
         st.warning("Brak okładek do wygenerowania.")
     else:
-        pdf_file = generate_pdf(covers)
-        st.download_button("📥 Pobierz PDF", data=pdf_file, file_name="okladki_blu_ray.pdf", mime="application/pdf")
+        with st.spinner("Generowanie PDF... proszę czekać"):
+            pdf_file = generate_pdf(covers)
+        st.download_button("Pobierz PDF", data=pdf_file, file_name="okladki_blu_ray.pdf", mime="application/pdf")
