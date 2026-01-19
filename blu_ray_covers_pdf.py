@@ -59,7 +59,9 @@ for cover in st.session_state.covers:
             value=st.session_state.quantities.get(cover['name'], 1),
             key=f"qty_{cover['name']}"
         )
-        st.session_state.quantities[cover['name']] = qty
+        if st.session_state.quantities.get(cover['name'], 1) != qty:
+            st.session_state.quantities[cover['name']] = qty
+            st.rerun()
 
 # --- Generowanie PDF ---
 def generate_pdf(cover_data):
